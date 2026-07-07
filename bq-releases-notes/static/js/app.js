@@ -4,18 +4,23 @@
 
 const $content    = document.getElementById("content");
 const $refreshBtn = document.getElementById("refresh-btn");
+const $exportBtn  = document.getElementById("export-btn");
 const $toast      = document.getElementById("toast");
+
+let currentNotes = [];
 
 // ── Bootstrap ──────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
   fetchNotes();
   $refreshBtn.addEventListener("click", fetchNotes);
+  $exportBtn.addEventListener("click", exportToCSV);
 });
 
 // ── Fetch notes ────────────────────────────────
 async function fetchNotes() {
   $refreshBtn.classList.add("loading");
   $refreshBtn.disabled = true;
+  $exportBtn.disabled = true;
 
   // show skeleton
   $content.innerHTML = buildSkeleton();
@@ -26,9 +31,12 @@ async function fetchNotes() {
 
     if (!data.ok) throw new Error(data.error || "Unknown error");
 
+    currentNotes = data.notes;
     renderNotes(data.notes);
     showToast(`Loaded ${data.notes.length} release notes`);
+    $exportBtn.disabled = false;
   } catch (err) {
+    currentNotes = [];
     $content.innerHTML = `
       <div class="error-state">
         <h2>😵 Failed to load notes</h2>
@@ -64,10 +72,16 @@ function renderNotes(notes) {
           Read on Google Cloud
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
         </a>
-        <button class="btn-tweet" onclick="tweetNote(${i})" title="Post on X (Twitter)">
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-          Post on X
-        </button>
+        <div class="note-actions">
+          <button class="btn-copy" onclick="copyNote(${i})" title="Copy to clipboard">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            Copy
+          </button>
+          <button class="btn-tweet" onclick="tweetNote(${i})" title="Post on X (Twitter)">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+            Post on X
+          </button>
+        </div>
       </div>
     </article>`;
   }).join("");
@@ -131,4 +145,54 @@ function showToast(msg) {
   $toast.textContent = msg;
   $toast.classList.add("show");
   setTimeout(() => $toast.classList.remove("show"), 2500);
+}
+
+// ── Copy note ──────────────────────────────────
+function copyNote(index) {
+  const card = document.getElementById(`note-${index}`);
+  const title = card.querySelector(".note-date").textContent;
+  const body = card.querySelector(".note-body");
+  const plainText = body.innerText.trim();
+  const link = card.querySelector(".note-link").href;
+
+  const fullText = `📢 BigQuery Release Note — ${title}\n\n${plainText}\n\nRead more: ${link}`;
+
+  navigator.clipboard.writeText(fullText)
+    .then(() => showToast("Copied to clipboard!"))
+    .catch(err => {
+      console.error("Failed to copy note: ", err);
+      showToast("Failed to copy note");
+    });
+}
+
+// ── Export CSV ─────────────────────────────────
+function exportToCSV() {
+  if (!currentNotes || !currentNotes.length) return;
+
+  const headers = ["Title", "Updated", "Link", "Content"];
+  const rows = currentNotes.map(n => {
+    return [
+      n.title,
+      n.updated,
+      n.link,
+      cleanHtml(n.content)
+    ].map(val => `"${val.replace(/"/g, '""')}"`).join(",");
+  });
+
+  const csvContent = [headers.join(","), ...rows].join("\n");
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.setAttribute("href", url);
+  link.setAttribute("download", "bigquery_release_notes.csv");
+  link.style.visibility = "hidden";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+function cleanHtml(html) {
+  const tmp = document.createElement("div");
+  tmp.innerHTML = html;
+  return tmp.innerText || tmp.textContent || "";
 }

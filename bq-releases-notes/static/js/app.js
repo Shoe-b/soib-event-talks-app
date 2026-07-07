@@ -2,18 +2,21 @@
    BigQuery Release Notes – client JS
    ────────────────────────────────────────────── */
 
-const $content    = document.getElementById("content");
-const $refreshBtn = document.getElementById("refresh-btn");
-const $exportBtn  = document.getElementById("export-btn");
-const $toast      = document.getElementById("toast");
+const $content     = document.getElementById("content");
+const $refreshBtn  = document.getElementById("refresh-btn");
+const $exportBtn   = document.getElementById("export-btn");
+const $themeToggle = document.getElementById("theme-toggle");
+const $toast       = document.getElementById("toast");
 
 let currentNotes = [];
 
 // ── Bootstrap ──────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
+  initTheme();
   fetchNotes();
   $refreshBtn.addEventListener("click", fetchNotes);
   $exportBtn.addEventListener("click", exportToCSV);
+  $themeToggle.addEventListener("click", toggleTheme);
 });
 
 // ── Fetch notes ────────────────────────────────
@@ -195,4 +198,34 @@ function cleanHtml(html) {
   const tmp = document.createElement("div");
   tmp.innerHTML = html;
   return tmp.innerText || tmp.textContent || "";
+}
+
+// ── Theme management ───────────────────────────
+function initTheme() {
+  const savedTheme = localStorage.getItem("theme") || "dark";
+  document.documentElement.setAttribute("data-theme", savedTheme);
+  updateThemeToggleUI(savedTheme);
+}
+
+// Global scope toggleTheme for index.html access or element listeners
+function toggleTheme() {
+  const currentTheme = document.documentElement.getAttribute("data-theme") || "dark";
+  const newTheme = currentTheme === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", newTheme);
+  localStorage.setItem("theme", newTheme);
+  updateThemeToggleUI(newTheme);
+  showToast(`Switched to ${newTheme} mode`);
+}
+
+function updateThemeToggleUI(theme) {
+  if (!$themeToggle) return;
+  const sunIcon = $themeToggle.querySelector(".sun-icon");
+  const moonIcon = $themeToggle.querySelector(".moon-icon");
+  if (theme === "light") {
+    sunIcon.style.display = "none";
+    moonIcon.style.display = "block";
+  } else {
+    sunIcon.style.display = "block";
+    moonIcon.style.display = "none";
+  }
 }
